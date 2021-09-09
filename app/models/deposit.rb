@@ -52,8 +52,8 @@ class Deposit < ApplicationRecord
     state :skipped
     state :collecting
     state :collected
-    state :fee_processing
     state :fee_collecting
+    state :fee_collected
     state :errored
     state :refunding
     event(:cancel) { transitions from: :submitted, to: :canceled }
@@ -92,22 +92,22 @@ class Deposit < ApplicationRecord
       end
     end
 
-    event :confirm_deposit_collection do
-      transitions from: %i[processing, fee_processing], to: :collecting
+    event :process_deposit_collection do
+      transitions from: %i[processing, fee_collected], to: :collecting
     end
 
-    event :confirm_fee_collection do
+    event :process_fee_collection do
       transitions from: :processing, to: :fee_collecting
     end
 
-    event :fee_process do
-      transitions from: %i[accepted processing skipped fee_collecting], to: :fee_processing do
+    event :confirm_fee_collection do
+      transitions from: %i[accepted processing skipped fee_collecting], to: :fee_collected do
         guard { currency.coin? }
       end
     end
 
     event :err do
-      transitions from: %i[processing fee_processing], to: :errored, after: :add_error
+      transitions from: %i[processing fee_collecting], to: :errored, after: :add_error
     end
 
     event :process_collect do
@@ -132,7 +132,7 @@ class Deposit < ApplicationRecord
     end
 
     event :dispatch do
-      transitions from: %i[collecting processing fee_processing], to: :collected
+      transitions from: %i[collecting], to: :collected
       after do
         if Peatio::App.config.deposit_funds_locked
           account.unlock_funds(amount)
