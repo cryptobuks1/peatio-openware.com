@@ -79,97 +79,73 @@ class BlockchainService
 
   private
 
-  # Filters deposit, fee and deposit_collection txs
-  # This method is so complicated to reduce amount of database interactions during deposit processing
-  def filter_deposit_txs(block)
-    # Filter transaction source/destination addresses
-    addresses = PaymentAddress.where(wallet: Wallet.deposit.with_currency(@currencies.codes),
-                                     address: block.transactions.map(&:to_address)).pluck(:address)
-
-    Wallet.with_currency(@currencies.codes).pluck(:address).map do |addr|
-      addresses << addr.downcase
-    end
-
-    # Select transactions, that are related to the platform
-    deposit_related_txs = block.select { |transaction| transaction.to_address.in?(addresses) }
-
-    # Select transactions in database
-    existing_db_txs = Transaction.where(txid: deposit_related_txs.map(&:hash))
-    existing_db_txs_ids = existing_db_txs.pluck(:txid)
-
-    # Partition returns two arrays, the first containing the elements of enum
-    # for which the block evaluates to true, the second containing the rest.
-    #
-    # This is not really safe, because tx and prebuild_tx can be recognized as a new deposit
-    existing_deposits_txs, new_deposits_txs = deposit_related_txs.partition do |tx|
-      tx.hash.in?(existing_db_txs_ids)
-    end
-
-    {
-      new_deposits_blockchain_txs: new_deposits_txs,
-      existing_deposits_blockchain_txs: existing_deposits_txs,
-      existing_deposits_db_txs: existing_db_txs
-    }
+  def filter_deposits(block)
+    addresses = PaymentAddress.where(wallet: Wallet.deposit.with_currency(@currencies),
+                                     blockchain_key: @blockchain.key, address: block.transactions.map(&:to_address)).pluck(:address)
+    block.select { |transaction| transaction.to_address.in?(addresses) }
   end
 
-  # Deposit in state processing
-  # There is no Transaction yet
-  # no actions
+  def filter_deposit_txs(block)
+    # Select pending transactions related to the platform
+    deposit_txs = Transaction.where(txid: block.transactions.map(&:hash), status: :pending)
 
-  # Deposit in state fee_collecting
-  # check tx state
-  # if succeed change state to fee_processing and change state of db_tx to succeed
 
-  # Deposit in state fee_processing
-  # There is no Transaction yet
-  # no actions
+    # Deposit in state fee_collecting
+    # check tx state
+    # if succeed change state to fee_collected and change state of tx to succeed
 
-  # Deposit in state collecting
-  # check tx state
-  # if succeed change state to collected and change state of db_tx to succeed
-  def process_pending_deposit_txs(block_txs, db_txs)
-    db_txs.each do |db_tx|
-      next unless db_tx.pending?
+    # Deposit in state fee_collected
+    # There is no Transaction yet
+    # no actions
 
-      block_tx = block_txs.find { |tx| tx if db_tx.txid == tx.hash }
-      next unless block_tx
+    # Deposit in state collecting
+    # check tx state
+    # if succeed change state to collected and change state of tx to succeed
+    deposit_txs.each do |tx|
+      Deposit.transaction do
+        # Fetch Deposit record
+        deposit = tx.reference
 
-      deposit = db_tx.reference
-      next unless deposit.fee_collecting? || deposit.collecting?
+        # Skip already processed deposit (should not happen if transaction in pending state)
+        next unless deposit.fee_processing? || deposit.collecting?
 
-      block_tx = adapter.fetch_transaction(block_tx) if @adapter.respond_to?(:fetch_transaction) && ( block_tx.fee.blank? || block_tx.status.pending? )
+        # Select tx from block
+        block_tx = block.transactions.find { |blck_tx| tx if tx.txid == blck_tx.hash }
 
-      db_tx.fee = block_tx.fee
-      # db_tx.fee_currency_id = block_tx.fee_currency_id
-      db_tx.block_number = block_tx.block_number
-      db_tx.save!
+        block_tx = adapter.fetch_transaction(block_tx) if @adapter.respond_to?(:fetch_transaction) && block_tx.fee.blank?
 
-      # BSC can return success only after fetch transaction
-      if block_tx.success?
-        db_tx.confirm!
+        # Update fee that was paid after execution
+        tx.fee = block_tx.fee
+        tx.block_number = block_tx.block_number
+        tx.save!
 
-        if deposit.fee_collecting? && db_tx.kind == 'tx_prebuild'
-          deposit.fee_process! if deposit.fee_collecting?
-        end
+        if block_tx.success?
+          tx.confirm!
 
-        if deposit.collecting? && db_tx.kind == 'tx'
-          updated_spread = deposit.spread.map do |tx|
-            tx[:status] = 'succeed' if tx[:hash] == block_tx.hash
-            tx
+          # If Deposit in fee_collecting state and Transaction for prepare deposit
+          # change state to `fee_collected`
+          if deposit.fee_collecting? && tx.kind == 'tx_prebuild'
+            deposit.confirm_fee_collection!
           end
 
-          deposit.update(spread: updated_spread)
-          deposit.dispatch! if deposit.spread.map{|t| t[:status]}.uniq.eql?(['succeed'])
+          # If Deposit in collecting state and Transaction for deposit collection
+          # change state to `collected`
+          if deposit.collecting? && tx.kind == 'tx'
+            updated_spread = deposit.spread.map do |spread_tx|
+              spread_tx[:status] = 'succeed' if spread_tx[:hash] == block_tx.hash
+              spread_tx
+            end
+
+            deposit.update(spread: updated_spread)
+            deposit.dispatch! if deposit.spread.map { |t| t[:status] }.uniq.eql?(['succeed'])
+          end
+        elsif block_tx.failed?
+          db_tx.fail!
+          deposit.err! 'Fee collection transaction failed' if tx.kind == 'tx_prebuild'
+          deposit.err! 'Collection transaction failed' if tx.kind == 'tx'
+        else
+          Rails.logger.info { "Skipped deposit #{deposit.inspect} and transaction #{block_tx.inspect}" }
         end
-
-      elsif block_tx.failed?
-        db_tx.fail!
-        deposit.err! 'Fee collection transaction failed' if db_tx.kind == 'tx_prebuild'
-        deposit.err! 'Collection transaction failed' if db_tx.kind == 'tx'
-
-      else
-      #   What should we do here?
-      # Is it possible?
       end
     end
   end
@@ -201,7 +177,6 @@ class BlockchainService
     return if address.blank?
 
     # Skip deposit tx if there is tx for deposit collection process
-    # TODO: select only pending transactions
     tx_collect = Transaction.where(txid: transaction.hash, reference_type: 'Deposit')
     return if tx_collect.present?
 

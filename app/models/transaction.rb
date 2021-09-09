@@ -85,24 +85,28 @@ class Transaction < ApplicationRecord
 end
 
 # == Schema Information
-# Schema version: 20201207134745
+# Schema version: 20210909120210
 #
 # Table name: transactions
 #
-#  id             :bigint           not null, primary key
-#  currency_id    :string(255)      not null
-#  reference_type :string(255)
-#  reference_id   :bigint
-#  txid           :string(255)
-#  from_address   :string(255)
-#  to_address     :string(255)
-#  amount         :decimal(32, 16)  default(0.0), not null
-#  block_number   :integer
-#  txout          :integer
-#  status         :string(255)
-#  options        :json
-#  created_at     :datetime         not null
-#  updated_at     :datetime         not null
+#  id              :bigint           not null, primary key
+#  currency_id     :string(255)      not null
+#  fee_currency_id :string(255)      not null
+#  kind            :string(255)
+#  blockchain_key  :string(255)
+#  reference_type  :string(255)
+#  reference_id    :bigint
+#  txid            :string(255)
+#  from_address    :string(255)
+#  to_address      :string(255)
+#  amount          :decimal(32, 16)  default(0.0), not null
+#  fee             :decimal(32, 16)
+#  block_number    :integer
+#  txout           :integer
+#  status          :string(255)
+#  options         :json
+#  created_at      :datetime         not null
+#  updated_at      :datetime         not null
 #
 # Indexes
 #
