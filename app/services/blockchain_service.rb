@@ -50,14 +50,14 @@ class BlockchainService
 
   def process_block(block_number)
     block = @adapter.fetch_block!(block_number)
-    deposits = filter_deposit_txs(block)
+    deposits = filter_deposits(block)
     withdrawals = filter_withdrawals(block)
-    process_pending_deposit_txs(deposits[:existing_deposits_blockchain_txs], deposits[:existing_deposits_db_txs])
     # TODO: Process Transactions with `pending` status
 
     accepted_deposits = []
     ActiveRecord::Base.transaction do
-      accepted_deposits = deposits[:new_deposits_blockchain_txs].map(&method(:update_or_create_deposit)).compact
+      accepted_deposits = deposits.map(&method(:update_or_create_deposit)).compact
+      filter_deposit_txs(block)
       withdrawals.each(&method(:update_withdrawal))
     end
     accepted_deposits.each(&:process!)
@@ -89,7 +89,6 @@ class BlockchainService
     # Select pending transactions related to the platform
     deposit_txs = Transaction.where(txid: block.transactions.map(&:hash), status: :pending)
 
-
     # Deposit in state fee_collecting
     # check tx state
     # if succeed change state to fee_collected and change state of tx to succeed
@@ -102,7 +101,6 @@ class BlockchainService
     # check tx state
     # if succeed change state to collected and change state of tx to succeed
     deposit_txs.each do |tx|
-      Deposit.transaction do
         # Fetch Deposit record
         deposit = tx.reference
 
@@ -115,9 +113,7 @@ class BlockchainService
         block_tx = adapter.fetch_transaction(block_tx) if @adapter.respond_to?(:fetch_transaction) && block_tx.fee.blank?
 
         # Update fee that was paid after execution
-        tx.fee = block_tx.fee
-        tx.block_number = block_tx.block_number
-        tx.save!
+        tx.update!(fee: block_tx.fee, block_number: block_tx.block_number, fee_currency_id: block_tx.fee_currency_id )
 
         if block_tx.success?
           tx.confirm!
@@ -126,6 +122,7 @@ class BlockchainService
           # change state to `fee_collected`
           if deposit.fee_collecting? && tx.kind == 'tx_prebuild'
             deposit.confirm_fee_collection!
+            tx.record_expenses!
           end
 
           # If Deposit in collecting state and Transaction for deposit collection
@@ -147,7 +144,6 @@ class BlockchainService
           Rails.logger.info { "Skipped deposit #{deposit.inspect} and transaction #{block_tx.inspect}" }
         end
       end
-    end
   end
 
   def filter_withdrawals(block)

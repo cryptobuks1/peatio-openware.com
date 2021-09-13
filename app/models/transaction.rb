@@ -19,20 +19,15 @@ class Transaction < ApplicationRecord
     state :pending, initial: true
     state :skipped
     state :failed
+    state :rejected
     state :succeed
 
     event :confirm do
       transitions from: :pending, to: :succeed
-      after do
-        record_expenses!
-      end
     end
 
     event :fail do
       transitions from: :pending, to: :failed
-      after do
-        record_expenses!
-      end
     end
 
     event :reject do

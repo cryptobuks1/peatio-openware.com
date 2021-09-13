@@ -33,7 +33,12 @@ module API
           ActiveRecord::Base.transaction do
             accepted_deposits = process_deposit(transactions, w.blockchain_key)
           end
-          accepted_deposits.each(&:process!) if accepted_deposits.present?
+
+          if accepted_deposits.present?
+            accepted_deposits.each do |deposit|
+              deposit.process! if deposit.aasm_state.in?(Deposit.aasm.from_states_for_state(:processing))
+            end
+          end
 
           # Process all withdrawal transactions
           ActiveRecord::Base.transaction do
@@ -70,7 +75,11 @@ module API
           ActiveRecord::Base.transaction do
             accepted_deposits = process_deposit(transactions, w.blockchain_key)
           end
-          accepted_deposits.each(&:process!) if accepted_deposits.present?
+          if accepted_deposits.present?
+            accepted_deposits.each do |deposit|
+              deposit.process! if deposit.aasm_state.in?(Deposit.aasm.from_states_for_state(:processing))
+            end
+          end
         end
       end
 
@@ -117,26 +126,47 @@ module API
             next
           end
 
-          deposit =
-            Deposits::Coin.find_or_create_by!(
-              currency_id: transaction.currency_id,
-              txid: transaction.hash,
-              txout: transaction.txout,
-              blockchain_key: payment_address.blockchain_key
-            ) do |d|
-              d.address = transaction.to_address
-              d.amount = transaction.amount
-              d.member = payment_address.member
-              d.block_number = transaction.block_number
-            end
-          # TODO: check if block number changed.
+          # Find transaction in DB for erc20 transactions
+          tx = Transaction.where(blockchain_key: payment_address.blockchain_key).find { |tr| tr.options['remote_id'] == transaction.options[:remote_id]}
+          if tx.present?
+            # 1. update transaction status (failed/succeed/rejected)
+            # 2. update transaction with txid if txid exists
+            # 3. find and move deposit to fee_collected state
+            # 4. record fee expenses in transaction
+            tx.update(status: transaction.status, txid: transaction.hash)
 
-          if transaction.status.success?
-            deposit.accept!
-          elsif transaction.status.rejected?
-            deposit.reject!
+            if transaction.status.success?
+              tx.reference.confirm_fee_collection!
+              tx.record_expenses!
+            elsif transaction.status.failed?
+              tx.reference.err!
+            end
+          else
+            deposit =
+              Deposits::Coin.find_or_create_by!(
+                currency_id: transaction.currency_id,
+                txid: transaction.hash,
+                txout: transaction.txout,
+                blockchain_key: payment_address.blockchain_key
+              ) do |d|
+                d.address = transaction.to_address
+                d.amount = transaction.amount
+                d.member = payment_address.member
+                d.block_number = transaction.block_number
+              end
+            # TODO: check if block number changed.
+
+            if transaction.status.success?
+              if deposit.collecting?
+                deposit.dispatch!
+              else
+                deposit.accept!
+              end
+            elsif transaction.status.rejected?
+              deposit.reject!
+            end
+            deposit
           end
-          deposit
         end
       end
 
