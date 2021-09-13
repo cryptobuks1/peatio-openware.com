@@ -75,6 +75,7 @@ module API
           ActiveRecord::Base.transaction do
             accepted_deposits = process_deposit(transactions, w.blockchain_key)
           end
+
           if accepted_deposits.present?
             accepted_deposits.each do |deposit|
               deposit.process! if deposit.aasm_state.in?(Deposit.aasm.from_states_for_state(:processing))
@@ -126,22 +127,27 @@ module API
             next
           end
 
-          # Find transaction in DB for erc20 transactions
-          tx = Transaction.where(blockchain_key: payment_address.blockchain_key).find { |tr| tr.options['remote_id'] == transaction.options[:remote_id]}
-          if tx.present?
-            # 1. update transaction status (failed/succeed/rejected)
-            # 2. update transaction with txid if txid exists
-            # 3. find and move deposit to fee_collected state
-            # 4. record fee expenses in transaction
-            tx.update(status: transaction.status, txid: transaction.hash)
+          # Find transaction in DB (Find transaction which connected to fee transfer to user payment addresses)
+          # For erc20 transaction
+          if transaction.options.present? && transaction.options[:remote_id].present?
+            tx = Transaction.where(to_address: payment_address.address, blockchain_key: payment_address.blockchain_key, kind: 'tx_prebuild')
+                            .select { |t| t.options['remote_id'] == transaction.options[:remote_id]}.last
+          elsif transaction.hash.present?
+            tx = Transaction.find_by(txid: transaction.hash, kind: 'tx_prebuild')
+          end
 
+          if tx.present?
+            # Confirm fee collection in case of successful transaction
             if transaction.status.success?
+              # Update erc20 transaction details, move deposit state to fee_collected
+              tx.update(txid: transaction.hash)
               tx.reference.confirm_fee_collection!
-              tx.record_expenses!
             elsif transaction.status.failed?
-              tx.reference.err!
+              tx.fail!
+              tx.reference.err! StandardError.new 'Fee collection transaction failed'
             end
           else
+            # Create or update deposit
             deposit =
               Deposits::Coin.find_or_create_by!(
                 currency_id: transaction.currency_id,

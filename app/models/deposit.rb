@@ -53,11 +53,13 @@ class Deposit < ApplicationRecord
     state :collecting
     state :collected
     state :fee_collecting
+    state :fee_processing
     state :fee_collected
     state :errored
     state :refunding
     event(:cancel) { transitions from: :submitted, to: :canceled }
     event(:reject) { transitions from: :submitted, to: :rejected }
+
     event :accept do
       transitions from: :submitted, to: :accepted
 
@@ -93,7 +95,7 @@ class Deposit < ApplicationRecord
     end
 
     event :process_deposit_collection do
-      transitions from: %i[processing, fee_collected], to: :collecting
+      transitions from: %i[processing fee_collected], to: :collecting
     end
 
     event :process_fee_collection do
@@ -103,11 +105,15 @@ class Deposit < ApplicationRecord
     event :confirm_fee_collection do
       transitions from: %i[accepted processing skipped fee_collecting], to: :fee_collected do
         guard { currency.coin? }
+
+        after do
+          record_tx_prebuild_expenses!
+        end
       end
     end
 
     event :err do
-      transitions from: %i[processing fee_collecting], to: :errored, after: :add_error
+      transitions from: %i[processing collecting fee_collecting], to: :errored, after: :add_error
     end
 
     event :process_collect do
@@ -138,6 +144,9 @@ class Deposit < ApplicationRecord
           account.unlock_funds(amount)
           record_complete_operations!
         end
+
+        # Here we record all (not only for UTXO)
+        record_tx_expenses!
       end
     end
 
@@ -293,6 +302,22 @@ class Deposit < ApplicationRecord
         to_kind:    :main,
         member_id:  member_id
       )
+    end
+  end
+
+  def record_tx_expenses!
+    if currency.coin?
+      tx = Transaction.find_by(reference: self, kind: 'tx')
+      tx.record_expenses!
+      tx.confirm!
+    end
+  end
+
+  def record_tx_prebuild_expenses!
+    if currency.coin?
+      tx = Transaction.find_by(reference: self, kind: 'tx_prebuild')
+      tx.record_expenses!
+      tx.confirm!
     end
   end
 end

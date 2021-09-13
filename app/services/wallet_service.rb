@@ -128,7 +128,6 @@ class WalletService
       end
 
       deposit.update(spread: updated_spread)
-
       transactions.each { |t| save_transaction(t.as_json.merge(from_address: @wallet.address, kind: 'tx_prebuild', blockchain_key: @wallet.blockchain_key), deposit) }
     end
     transactions

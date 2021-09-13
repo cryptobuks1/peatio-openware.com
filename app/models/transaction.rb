@@ -4,7 +4,7 @@ class Transaction < ApplicationRecord
   # == Constants ============================================================
 
   STATUSES = %w[pending succeed rejected failed].freeze
-  KINDS = %w[tx tx_prebuild].freez
+  KINDS = %w[tx tx_prebuild].freeze
 
   # == Attributes ===========================================================
 

@@ -87,8 +87,7 @@ class BlockchainService
 
   def filter_deposit_txs(block)
     # Select pending transactions related to the platform
-    deposit_txs = Transaction.where(txid: block.transactions.map(&:hash), status: :pending)
-
+    deposit_txs = Transaction.where(reference_type: 'Deposit', txid: block.transactions.map(&:hash), status: :pending)
     # Deposit in state fee_collecting
     # check tx state
     # if succeed change state to fee_collected and change state of tx to succeed
@@ -101,49 +100,43 @@ class BlockchainService
     # check tx state
     # if succeed change state to collected and change state of tx to succeed
     deposit_txs.each do |tx|
-        # Fetch Deposit record
-        deposit = tx.reference
+      # Fetch Deposit record
+      deposit = tx.reference
 
-        # Skip already processed deposit (should not happen if transaction in pending state)
-        next unless deposit.fee_processing? || deposit.collecting?
+      # Skip already processed deposit (should not happen if transaction in pending state)
+      next unless deposit.fee_collecting? || deposit.collecting?
 
-        # Select tx from block
-        block_tx = block.transactions.find { |blck_tx| tx if tx.txid == blck_tx.hash }
+      # Select tx from block
+      block_tx = block.transactions.find { |blck_tx| tx if tx.txid == blck_tx.hash }
+      block_tx = adapter.fetch_transaction(block_tx) if @adapter.respond_to?(:fetch_transaction) && block_tx.fee.blank?
 
-        block_tx = adapter.fetch_transaction(block_tx) if @adapter.respond_to?(:fetch_transaction) && block_tx.fee.blank?
+      # Update fee that was paid after execution
+      tx.update!(fee: block_tx.fee, block_number: block_tx.block_number, fee_currency_id: block_tx.fee_currency_id )
 
-        # Update fee that was paid after execution
-        tx.update!(fee: block_tx.fee, block_number: block_tx.block_number, fee_currency_id: block_tx.fee_currency_id )
-
-        if block_tx.success?
-          tx.confirm!
-
-          # If Deposit in fee_collecting state and Transaction for prepare deposit
-          # change state to `fee_collected`
-          if deposit.fee_collecting? && tx.kind == 'tx_prebuild'
-            deposit.confirm_fee_collection!
-            tx.record_expenses!
-          end
-
-          # If Deposit in collecting state and Transaction for deposit collection
-          # change state to `collected`
-          if deposit.collecting? && tx.kind == 'tx'
-            updated_spread = deposit.spread.map do |spread_tx|
-              spread_tx[:status] = 'succeed' if spread_tx[:hash] == block_tx.hash
-              spread_tx
-            end
-
-            deposit.update(spread: updated_spread)
-            deposit.dispatch! if deposit.spread.map { |t| t[:status] }.uniq.eql?(['succeed'])
-          end
-        elsif block_tx.failed?
-          db_tx.fail!
-          deposit.err! 'Fee collection transaction failed' if tx.kind == 'tx_prebuild'
-          deposit.err! 'Collection transaction failed' if tx.kind == 'tx'
-        else
-          Rails.logger.info { "Skipped deposit #{deposit.inspect} and transaction #{block_tx.inspect}" }
+      if block_tx.status.success?
+        # If Deposit in fee_collecting state and Transaction for prepare deposit
+        # change state to `fee_collected`
+        if deposit.fee_collecting? && tx.kind == 'tx_prebuild'
+          deposit.confirm_fee_collection!
         end
+        # If Deposit in collecting state and Transaction for deposit collection
+        # change state to `collected`
+        if deposit.collecting? && tx.kind == 'tx'
+          updated_spread = deposit.spread.map do |spread_tx|
+            spread_tx[:status] = 'succeed' if spread_tx[:hash] == block_tx.hash
+            spread_tx
+          end
+          deposit.update(spread: updated_spread)
+          deposit.dispatch! if deposit.spread.map { |t| t[:status] }.uniq.eql?(['succeed'])
+        end
+      elsif block_tx.status.failed?
+        tx.fail!
+        deposit.err! StandardError.new 'Fee collection transaction failed' if tx.kind == 'tx_prebuild'
+        deposit.err! StandardError.new 'Collection transaction failed' if tx.kind == 'tx'
+      else
+        Rails.logger.info { "Skipped deposit #{deposit.inspect} and transaction #{block_tx.inspect}" }
       end
+    end
   end
 
   def filter_withdrawals(block)
@@ -225,10 +218,8 @@ class BlockchainService
     # Manually calculating withdrawal confirmations, because blockchain height is not updated yet.
     if transaction.status.failed?
       withdrawal.fail!
-      db_tx.fail!
     elsif transaction.status.success? && latest_block_number - withdrawal.block_number >= @blockchain.min_confirmations
       withdrawal.success!
-      db_tx.confirm!
     end
   end
 end

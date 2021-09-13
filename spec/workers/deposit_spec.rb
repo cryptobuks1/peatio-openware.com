@@ -13,7 +13,7 @@ describe Workers::Daemons::Deposit do
 
   subject { Workers::Daemons::Deposit.new }
 
-  context 'collect btc deposit' do
+  context 'collecting btc deposit' do
     before do
       btc_deposit.accept!
       btc_deposit.process!
@@ -31,11 +31,11 @@ describe Workers::Daemons::Deposit do
 
     it 'process one btc deposit' do
       subject.process
-      expect(btc_deposit.reload.collected?).to be_truthy
+      expect(btc_deposit.reload.collecting?).to be_truthy
     end
   end
 
-  context 'collect eth deposit' do
+  context 'collecting eth deposit' do
     before do
       eth_deposit.accept!
       eth_deposit.process!
@@ -56,7 +56,7 @@ describe Workers::Daemons::Deposit do
 
     it 'process one eth deposit' do
       subject.process
-      expect(eth_deposit.reload.collected?).to be_truthy
+      expect(eth_deposit.reload.collecting?).to be_truthy
     end
   end
 
@@ -81,15 +81,18 @@ describe Workers::Daemons::Deposit do
 
     it 'process one trst deposit' do
       subject.process
-      expect(trst_deposit.reload.fee_processing?).to be_truthy
+      expect(trst_deposit.reload.fee_collecting?).to be_truthy
     end
   end
 
   context 'collect trst deposit' do
+    let!(:transaction) { Transaction.create!(txid: trst_deposit.txid, reference: trst_deposit, kind: 'tx_prebuild', from_address: 'fake_address', to_address: trst_deposit.address, blockchain_key: trst_deposit.blockchain_key, status: :pending, currency_id: trst_deposit.currency_id) }
+
     before do
       trst_deposit.accept!
       trst_deposit.process!
-      trst_deposit.fee_process!
+      trst_deposit.process_fee_collection!
+      trst_deposit.confirm_fee_collection!
       trst_deposit.update!(updated_at: Time.now - 20.minutes)
     end
 
@@ -107,7 +110,7 @@ describe Workers::Daemons::Deposit do
 
     it 'process one trst deposit' do
       subject.process
-      expect(trst_deposit.reload.collected?).to be_truthy
+      expect(trst_deposit.reload.collecting?).to be_truthy
     end
   end
 
