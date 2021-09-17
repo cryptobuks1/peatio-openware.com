@@ -25,7 +25,9 @@ describe OWHDWallet::WalletETH do
 
     let(:uri_result) do
       {
-        'tx': '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc'
+        'tx': '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc',
+        'fee': '0.0',
+        'fee_currency_id': 'btc'
       }
     end
 
@@ -51,6 +53,8 @@ describe OWHDWallet::WalletETH do
 
       result = wallet_btc.create_transaction!(transaction)
       expect(result.as_json.symbolize_keys).to eq(amount: 1.1.to_s,
+                                                  fee: "0.0",
+                                                  fee_currency_id: "btc",
                                                   to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
                                                   hash: '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc',
                                                   status: 'pending')

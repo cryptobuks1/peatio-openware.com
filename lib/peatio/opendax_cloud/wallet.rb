@@ -53,6 +53,9 @@ module OpendaxCloud
                     amount: transaction.amount,
                     tid: transaction.options.try(:[], :tid)
                   }.compact)
+
+      transaction.fee = response['fee']
+      transaction.fee_currency_id = response['fee_currency_id']
       transaction.options = response['options']
       transaction
     rescue OpendaxCloud::Client::Error => e
@@ -78,6 +81,8 @@ module OpendaxCloud
       [
         Peatio::Transaction.new(
           currency_id: params[:currency],
+          fee_currency_id: params[:fee_currency_id],
+          fee: params[:fee].to_d,
           amount: params[:amount].to_d,
           hash: params[:blockchain_txid],
           # If there is no rid field, it means we have deposit in payload

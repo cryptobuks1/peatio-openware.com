@@ -247,7 +247,7 @@ module Ethereum
                              txout:           log['logIndex'].to_i(16),
                              block_number:    txn_receipt.fetch('blockNumber').to_i(16),
                              currency_id:     currency.fetch(:id),
-                             fee_currency_id: @eth.fetch(:id),
+                             fee_currency_id: native_currency_id,
                              status:          transaction_status(txn_receipt) }
         end
       end

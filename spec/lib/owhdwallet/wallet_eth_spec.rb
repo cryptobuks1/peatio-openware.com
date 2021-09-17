@@ -161,6 +161,8 @@ describe OWHDWallet::WalletETH do
     let(:response) do
       {
         tx: '0xab6ada9608f4cebf799ee8be20fe3fb84b0d08efcdb0d962df45d6fce70cb017',
+        fee: '0.1',
+        fee_currency_id: 'eth',
         gas_price: 1000000000
       }
     end
@@ -184,6 +186,8 @@ describe OWHDWallet::WalletETH do
                                                         to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
                                                         hash: '0xab6ada9608f4cebf799ee8be20fe3fb84b0d08efcdb0d962df45d6fce70cb017',
                                                         status: 'pending',
+                                                        fee: '0.0000001',
+                                                        fee_currency_id: 'eth',
                                                         options: {"gas_limit"=>90000, "gas_price"=>1000000000})
     end
 
@@ -246,7 +250,9 @@ describe OWHDWallet::WalletETH do
 
       let(:uri_result) do
         {
-          'tx': '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc'
+          'tx': '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc',
+          'fee': 0.1,
+          'fee_currency_id': 'eth'
         }
       end
 
@@ -272,6 +278,8 @@ describe OWHDWallet::WalletETH do
         result = wallet.create_transaction!(transaction)
         expect(result.as_json.symbolize_keys).to eq(amount: 1.1.to_s,
                                                     to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
+                                                    fee: '0.0000000000000000001',
+                                                    fee_currency_id: 'eth',
                                                     hash: '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc',
                                                     status: 'pending')
       end
@@ -298,7 +306,9 @@ describe OWHDWallet::WalletETH do
 
       let(:uri_result) do
         {
-          'tx': '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc'
+          'tx': '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc',
+          'fee': '0.2',
+          'fee_currency_id': 'eth'
         }
       end
 
@@ -324,6 +334,8 @@ describe OWHDWallet::WalletETH do
 
         result = wallet.create_transaction!(transaction)
         expect(result.as_json.symbolize_keys).to eq(amount: 1.1.to_s,
+                                                    fee_currency_id: 'eth',
+                                                    fee: "0.0000002",
                                                     to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
                                                     hash: '0xa56316b637a94c4cc0331c73ef26389d6c097506d581073f927275e7a6ece0bc',
                                                     status: 'pending')
