@@ -127,7 +127,7 @@ class BlockchainService
             spread_tx
           end
           deposit.update(spread: updated_spread)
-          deposit.dispatch! if deposit.spread.map { |t| t[:status] }.uniq.eql?(['succeed'])
+          deposit.dispatch! if deposit.spread.map { |t| t[:status].in?(%w[skipped succeed]) }.all?(true)
         end
       elsif block_tx.status.failed?
         tx.fail!

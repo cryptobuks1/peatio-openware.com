@@ -96,6 +96,9 @@ class Deposit < ApplicationRecord
 
     event :process_deposit_collection do
       transitions from: %i[processing fee_collected], to: :collecting
+      after_commit do
+        dispatch! if spread.map { |d| d[:status] == 'skipped' }.all?(true)
+      end
     end
 
     event :process_fee_collection do
@@ -308,6 +311,8 @@ class Deposit < ApplicationRecord
   def record_tx_expenses!
     if currency.coin?
       tx = Transaction.find_by(reference: self, kind: 'tx')
+      return if tx.blank?
+
       tx.record_expenses!
       tx.confirm!
     end

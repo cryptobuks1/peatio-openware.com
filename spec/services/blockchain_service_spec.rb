@@ -238,6 +238,26 @@ describe BlockchainService do
               expect(deposit.spread[0][:status]).to eq 'succeed'
             end
           end
+
+          context 'collecting state of deposit with one skipped tx in spread' do
+            let!(:deposit) { create(:deposit_btc, address: 'fake_address', blockchain_key: 'fake-testnet', spread: [{status: 'skipped'}, {status: 'pending', hash: 'fake_hash_test'}], txid: 'fake_hash_test', currency_id: 'fake1', aasm_state: :collecting )}
+            let!(:transaction) { Transaction.create(txid: 'fake_hash_test', reference: deposit, txout: 0, kind: 'tx', from_address: 'fake_address', to_address: 'fake_address', blockchain_key: 'fake-testnet', status: :pending, currency_id: 'fake1')}
+
+            before do
+              service.adapter.stubs(:fetch_block!).returns(expected_block)
+              service.process_block(block_number)
+            end
+
+            it 'should update deposit and transaction' do
+              transaction.reload
+              deposit.reload
+              expect(transaction.fee).to eq 0.2
+              expect(transaction.fee_currency_id).to eq 'fake1'
+              expect(transaction.status).to eq 'succeed'
+              expect(deposit.collected?).to eq true
+              expect(deposit.spread[1][:status]).to eq 'succeed'
+            end
+          end
         end
 
         context 'failed transaction' do

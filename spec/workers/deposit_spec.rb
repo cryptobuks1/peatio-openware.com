@@ -35,7 +35,49 @@ describe Workers::Daemons::Deposit do
     end
   end
 
-  context 'collecting eth deposit' do
+  context 'with skip_deposit_collection with one tx in spread' do
+    before do
+      PaymentAddress.find_by(address: btc_deposit.address).update(member_id: btc_deposit.member_id)
+      btc_deposit.accept!
+      btc_deposit.process!
+      btc_deposit.update!(updated_at: Time.now - 20.minutes)
+      btc_deposit.update(spread: spread)
+    end
+
+    let(:spread) do
+      [{ to_address: 'to-address', amount: 0.1, status: 'skipped' }]
+    end
+
+    it 'changed to collected automatically' do
+      subject.process
+      expect(btc_deposit.reload.collected?).to be_truthy
+    end
+  end
+
+  context 'with skip_deposit_collection with two txs in spread' do
+    before do
+      PaymentAddress.find_by(address: btc_deposit.address).update(member_id: btc_deposit.member_id)
+      btc_deposit.accept!
+      btc_deposit.process!
+      btc_deposit.update!(updated_at: Time.now - 20.minutes)
+      btc_deposit.update(spread: spread)
+      Bitcoin::Wallet.any_instance
+                     .expects(:create_transaction!)
+                     .returns(Peatio::Transaction.new(to_address: 'to-address1', amount: 0.1, status: 'pending', currency_id: 'btc'))
+    end
+
+    let(:spread) do
+      [{ to_address: 'to-address', amount: 0.1, status: 'skipped' },
+       { to_address: 'to-address1', amount: 0.1, status: 'pending' }]
+    end
+
+    it 'changed to collected automatically' do
+      subject.process
+      expect(btc_deposit.reload.collecting?).to be_truthy
+    end
+  end
+
+  context 'collect eth deposit' do
     before do
       eth_deposit.accept!
       eth_deposit.process!

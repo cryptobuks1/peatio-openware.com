@@ -373,7 +373,7 @@ describe Deposit do
   end
 
   context :processing do
-    let(:crypto_deposit) { create(:deposit_btc, amount: 3.7) }
+    let(:crypto_deposit) { create(:deposit_btc, amount: 3.7, spread: [{ status: 'pending' }]) }
 
     let!(:transaction) { Transaction.create(txid: crypto_deposit.txid, reference: crypto_deposit, kind: 'tx', from_address: 'fake_address', to_address: crypto_deposit.address, blockchain_key: crypto_deposit.blockchain_key, status: :pending, currency_id: crypto_deposit.currency_id) }
 
