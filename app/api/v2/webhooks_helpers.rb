@@ -102,7 +102,7 @@ module API
 
       def process_deposit(transactions, blockchain_key)
         accepted_deposits = find_or_create_deposit!(transactions, blockchain_key)
-
+        confirm_deposit_collection(transactions)
         accepted_deposits.compact if accepted_deposits.present?
       end
 
@@ -142,6 +142,7 @@ module API
               # Update erc20 transaction details, move deposit state to fee_collected
               tx.update(txid: transaction.hash)
               tx.reference.confirm_fee_collection!
+              tx.confirm!
             elsif transaction.status.failed?
               tx.fail!
               tx.reference.err! StandardError.new 'Fee collection transaction failed'
@@ -176,6 +177,29 @@ module API
         end
       end
 
+      def confirm_deposit_collection(transactions)
+        transactions.each do |transaction|
+          if transaction.options.present? && transaction.options[:remote_id].present?
+            tx = Transaction.where(currency_id: transaction.currency_id, kind: 'tx', status: 'pending')
+                            .find { |t| t.options['remote_id'] == transaction.options[:remote_id] }
+          elsif transaction.hash.present?
+            tx = Transaction.find_by(txid: transaction.hash, kind: 'tx_prebuild')
+          end
+          next if tx.blank?
+
+          deposit = tx.reference
+          if transaction.status.success? && deposit.collecting?
+            updated_spread = deposit.spread.map do |spread_tx|
+              spread_tx[:status] = 'succeed' if spread_tx[:hash] == transaction.hash
+              spread_tx
+            end
+            deposit.update(spread: updated_spread)
+            deposit.dispatch! if deposit.spread.map { |t| t[:status].in?(%w[skipped succeed]) }.all?(true)
+            tx.confirm!
+          end
+        end
+      end
+
       def update_withdrawal(transactions)
         transactions.each do |transaction|
           if transaction.options.present? && transaction.options[:tid].present?
@@ -196,12 +220,19 @@ module API
           end
 
           Rails.logger.info { "Withdraw transaction detected: #{transaction.inspect}" }
+          # Select Transaction update txid if needed
+          tx = Transaction.find_by(reference: withdraw, status: :pening)
+          tx.update!(txid: transaction.hash, fee: transaction.fee, block_number: transaction.block_number, fee_currency_id: transaction.fee_currency_id)
+
           if transaction.status.failed?
             withdrawal.fail!
+            tx.fail!
           elsif transaction.status.success?
             withdrawal.success!
+            tx.confirm!
           elsif transaction.status.rejected?
             withdrawal.reject!
+            tx.reject!
           end
         end
       end

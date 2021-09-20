@@ -128,6 +128,7 @@ class BlockchainService
           end
           deposit.update(spread: updated_spread)
           deposit.dispatch! if deposit.spread.map { |t| t[:status].in?(%w[skipped succeed]) }.all?(true)
+          tx.confirm!
         end
       elsif block_tx.status.failed?
         tx.fail!
@@ -218,8 +219,10 @@ class BlockchainService
     # Manually calculating withdrawal confirmations, because blockchain height is not updated yet.
     if transaction.status.failed?
       withdrawal.fail!
+      db_tx.fail!
     elsif transaction.status.success? && latest_block_number - withdrawal.block_number >= @blockchain.min_confirmations
       withdrawal.success!
+      db_tx.confirm!
     end
   end
 end

@@ -151,7 +151,6 @@ class Withdraw < ApplicationRecord
         after do
           unlock_and_sub_funds
           record_complete_operations!
-          record_tx_expenses!
         end
       end
     end
@@ -335,15 +334,6 @@ class Withdraw < ApplicationRecord
         currency:   currency,
         reference:  self
       )
-    end
-  end
-
-  def record_tx_expenses!
-    # Find transaction which is connected to this withdrawal
-    if currency.coin?
-      tx = Transaction.find_by(reference: self, kind: 'tx')
-      tx.record_expenses!
-      tx.confirm!
     end
   end
 

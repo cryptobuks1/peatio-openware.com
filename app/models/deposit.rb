@@ -108,10 +108,6 @@ class Deposit < ApplicationRecord
     event :confirm_fee_collection do
       transitions from: %i[accepted processing skipped fee_collecting], to: :fee_collected do
         guard { currency.coin? }
-
-        after do
-          record_tx_prebuild_expenses!
-        end
       end
     end
 
@@ -147,9 +143,6 @@ class Deposit < ApplicationRecord
           account.unlock_funds(amount)
           record_complete_operations!
         end
-
-        # Here we record all (not only for UTXO)
-        record_tx_expenses!
       end
     end
 
@@ -305,24 +298,6 @@ class Deposit < ApplicationRecord
         to_kind:    :main,
         member_id:  member_id
       )
-    end
-  end
-
-  def record_tx_expenses!
-    if currency.coin?
-      tx = Transaction.find_by(reference: self, kind: 'tx')
-      return if tx.blank?
-
-      tx.record_expenses!
-      tx.confirm!
-    end
-  end
-
-  def record_tx_prebuild_expenses!
-    if currency.coin?
-      tx = Transaction.find_by(reference: self, kind: 'tx_prebuild')
-      tx.record_expenses!
-      tx.confirm!
     end
   end
 end
