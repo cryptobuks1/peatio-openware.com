@@ -138,13 +138,17 @@ module Ethereum
       return if currency.blank?
 
       txn_receipt = client.json_rpc(:eth_getTransactionReceipt, [transaction.hash])
+      fee = txn_receipt.fetch('gasUsed').hex
+
       if currency[:id] == @eth[:id]
         txn_json = client.json_rpc(:eth_getTransactionByHash, [transaction.hash])
         attributes = {
           amount: convert_from_base_unit(txn_json.fetch('value').hex, currency),
           to_address: normalize_address(txn_json['to']),
           txout: txn_json.fetch('transactionIndex').to_i(16),
-          status: transaction_status(txn_receipt)
+          status: transaction_status(txn_receipt),
+          fee_currency_id: native_currency_id,
+          fee: convert_from_base_unit(fee, currency)
         }
       else
         if transaction.txout.present?
@@ -155,7 +159,9 @@ module Ethereum
         attributes = {
           amount: convert_from_base_unit(txn_json.fetch('data').hex, currency),
           to_address: normalize_address('0x' + txn_json.fetch('topics').last[-40..-1]),
-          status: transaction_status(txn_receipt)
+          status: transaction_status(txn_receipt),
+          fee_currency_id: native_currency_id,
+          fee: convert_from_base_unit(fee, currency)
         }
       end
       transaction.assign_attributes(attributes)

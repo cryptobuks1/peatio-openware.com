@@ -172,8 +172,6 @@ describe Ethereum::Eth::Wallet do
                                                     currency_id: 'eth',
                                                     to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
                                                     hash: txid,
-                                                    fee: '0.000021',
-                                                    fee_currency_id: 'eth',
                                                     status: 'pending',
                                                     options: { 'gas_limit' => 21_000, 'gas_price' => 1_000_000_000, 'subtract_fee' => true })
       end
@@ -211,8 +209,6 @@ describe Ethereum::Eth::Wallet do
           result = wallet.create_transaction!(transaction)
           expect(result.as_json.symbolize_keys).to eq(amount: 1.1.to_s,
                                                       currency_id: 'eth',
-                                                      fee_currency_id: 'eth',
-                                                      fee: '0.000021',
                                                       to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
                                                       hash: txid,
                                                       status: 'pending',
@@ -262,8 +258,6 @@ describe Ethereum::Eth::Wallet do
                                                       currency_id: 'eth',
                                                       to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
                                                       hash: txid,
-                                                      fee: '0.0000231',
-                                                      fee_currency_id: 'eth',
                                                       status: 'pending',
                                                       options: { 'gas_limit' => 21_000, 'gas_price' => 1_100_000_000, 'subtract_fee' => true })
         end
@@ -324,8 +318,6 @@ describe Ethereum::Eth::Wallet do
         expect(result.as_json.symbolize_keys).to eq(amount: 1.1.to_s,
                                                     to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
                                                     hash: txid,
-                                                    fee: '90000000.0',
-                                                    fee_currency_id: 'eth',
                                                     status: 'pending',
                                                     options: { 'erc20_contract_address' => '0x87099add3bcc0821b5b151307c147215f839a110', 'gas_limit' => 90_000, 'gas_price' => 1_000_000_000 })
       end
@@ -396,8 +388,6 @@ describe Ethereum::Eth::Wallet do
         result = wallet.prepare_deposit_collection!(transaction, spread_deposit, trst.to_blockchain_api_settings)
         expect(result.first.as_json.symbolize_keys).to eq(amount: '0.00018',
                                                           currency_id: 'eth',
-                                                          fee: '0.000021',
-                                                          fee_currency_id: 'eth',
                                                           to_address: '0x6d6cabaa7232d7f45b143b445114f7e92350a2aa',
                                                           hash: txid,
                                                           status: 'pending',

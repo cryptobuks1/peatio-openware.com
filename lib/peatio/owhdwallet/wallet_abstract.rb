@@ -49,8 +49,6 @@ module OWHDWallet
       }.merge(params))
 
       transaction.hash = response['tx']
-      transaction.fee = convert_from_base_unit(response['fee'])
-      transaction.fee_currency_id = response['fee_currency_id']
       transaction.options = response['options'] if response['options'].present?
       transaction
     rescue OWHDWallet::Client::Error => e
@@ -82,8 +80,6 @@ module OWHDWallet
       transaction.options = {}
       transaction.options[:gas_limit] = gas_limit
       transaction.options[:gas_price] = response['gas_price']
-      transaction.fee = convert_from_base_unit(response['fee'])
-      transaction.fee_currency_id = response['fee_currency_id']
       [transaction]
     rescue OWHDWallet::Client::Error => e
       raise Peatio::Wallet::ClientError, e
