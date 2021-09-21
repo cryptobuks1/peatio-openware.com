@@ -164,7 +164,6 @@ class Withdraw < ApplicationRecord
       after do
         unlock_funds
         record_cancel_operations!
-        fail_tx_transaction!
       end
     end
 
@@ -334,13 +333,6 @@ class Withdraw < ApplicationRecord
         currency:   currency,
         reference:  self
       )
-    end
-  end
-
-  def fail_tx_transaction!
-    if currency.coin?
-      tx = Transaction.find_by(reference: self, kind: 'tx')
-      tx.fail!
     end
   end
 

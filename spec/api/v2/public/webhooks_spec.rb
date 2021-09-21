@@ -150,6 +150,8 @@ describe API::V2::Public::Webhooks, type: :request do
             let(:transaction) do
               Peatio::Transaction.new(
                 currency_id: :eth,
+                fee_currency_id: :eth,
+                fee: 0.1,
                 hash: '0xa049b0202ba078caa723c6b59594247b0c9f33e24878950f8537cedff9ea20ac',
                 amount: 0.5,
                 to_address: '0x1ef338196bd0207ba4852ba7a6847eed59331b84',
@@ -188,12 +190,15 @@ describe API::V2::Public::Webhooks, type: :request do
 
               withdraw.reload
               expect(withdraw.aasm_state).to eq 'succeed'
+              expect(tx.reload.status).to eq 'succeed'
             end
 
             context 'failed transaction' do
               let(:transaction) do
                 Peatio::Transaction.new(
                   currency_id: :eth,
+                  fee_currency_id: :eth,
+                  fee: 0.1,
                   hash: '0xa049b0202ba078caa723c6b59594247b0c9f33e24878950f8537cedff9ea20ac',
                   amount: 0.5,
                   to_address: '0x1ef338196bd0207ba4852ba7a6847eed59331b84',
@@ -209,6 +214,7 @@ describe API::V2::Public::Webhooks, type: :request do
 
                 withdraw.reload
                 expect(withdraw.aasm_state).to eq 'failed'
+                expect(tx.reload.status).to eq 'failed'
               end
             end
           end
@@ -298,8 +304,10 @@ describe API::V2::Public::Webhooks, type: :request do
             let(:transaction) do
               Peatio::Transaction.new(
                 currency_id: :eth,
+                fee_currency_id: :eth,
                 hash: '0xa049b0202ba078caa723c6b59594247b0c9f33e24878950f8537cedff9ea20ac',
                 amount: 0.5,
+                fee: 0.1,
                 to_address: '0x1ef338196bd0207ba4852ba7a6847eed59331b84',
                 block_number: 16880960,
                 txout: 0,
@@ -341,6 +349,7 @@ describe API::V2::Public::Webhooks, type: :request do
                     api_post '/api/v2/public/webhooks/opendax_cloud/generic'
                     deposit.reload
                     expect(deposit.aasm_state).to eq 'collected'
+                    expect(tx.reload.status).to eq 'succeed'
                   end
                 end
               end
@@ -351,6 +360,8 @@ describe API::V2::Public::Webhooks, type: :request do
                 let(:transaction) do
                   Peatio::Transaction.new(
                     currency_id: :eth,
+                    fee_currency_id: :eth,
+                    fee: 0.1,
                     hash: nil,
                     amount: 0.5,
                     to_address: '0x1ef338196bd0207ba4852ba7a6847eed59331b84',
@@ -381,6 +392,8 @@ describe API::V2::Public::Webhooks, type: :request do
                 let(:transaction) do
                   Peatio::Transaction.new(
                     currency_id: :eth,
+                    fee_currency_id: :eth,
+                    fee: 0.1,
                     hash: '0x12g43asd3445560394230452345',
                     amount: 0.5,
                     to_address: '0x1ef338196bd0207ba4852ba7a6847eed59331b84',
@@ -416,6 +429,8 @@ describe API::V2::Public::Webhooks, type: :request do
                   let(:transaction) do
                     Peatio::Transaction.new(
                       currency_id: :eth,
+                      fee_currency_id: :eth,
+                      fee: 0.1,
                       hash: '0x12g43asd3445560394230452345',
                       amount: 0.5,
                       to_address: '0x1ef338196bd0207ba4852ba7a6847eed59331b84',
@@ -453,6 +468,8 @@ describe API::V2::Public::Webhooks, type: :request do
             let(:transaction) do
               Peatio::Transaction.new(
                 currency_id: :eth,
+                fee_currency_id: :eth,
+                fee: 0.1,
                 hash: '0xa049b0202ba078caa723c6b59594247b0c9f33e24878950f8537cedff9ea20ac',
                 amount: 0.5,
                 to_address: '0x1ef338196bd0207ba4852ba7a6847eed59331b84',
@@ -494,6 +511,7 @@ describe API::V2::Public::Webhooks, type: :request do
 
               withdraw.reload
               expect(withdraw.aasm_state).to eq 'succeed'
+              expect(tx.reload.status).to eq 'succeed'
             end
           end
         end

@@ -118,6 +118,7 @@ class BlockchainService
         # change state to `fee_collected`
         if deposit.fee_collecting? && tx.kind == 'tx_prebuild'
           deposit.confirm_fee_collection!
+          tx.confirm!
         end
         # If Deposit in collecting state and Transaction for deposit collection
         # change state to `collected`
@@ -131,9 +132,9 @@ class BlockchainService
           tx.confirm!
         end
       elsif block_tx.status.failed?
-        tx.fail!
         deposit.err! StandardError.new 'Fee collection transaction failed' if tx.kind == 'tx_prebuild'
         deposit.err! StandardError.new 'Collection transaction failed' if tx.kind == 'tx'
+        tx.fail!
       else
         Rails.logger.info { "Skipped deposit #{deposit.inspect} and transaction #{block_tx.inspect}" }
       end

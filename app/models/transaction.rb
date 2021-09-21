@@ -10,7 +10,7 @@ class Transaction < ApplicationRecord
 
   # == Extensions ===========================================================
 
-  serialize :data, JSON unless Rails.configuration.database_support_json
+  serialize :options, JSON unless Rails.configuration.database_support_json
 
   include AASM
   include AASM::Locking
@@ -69,6 +69,7 @@ class Transaction < ApplicationRecord
 
   def initialize_defaults
     self.fee_currency_id ||= currency_id
+    self.options = {} if options.blank?
   end
 
   def record_expenses!
